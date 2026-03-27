@@ -61,15 +61,22 @@ let AGENDA = {seg:[],ter:[{id:'t1',text:'Visita Rede Econômica',type:'visita'}]
 
 const supabaseUrl = 'https://kudfexbgjwayxppnfcyh.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1ZGZleGJnandheXhwcG5mY3loIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2Mzk3MzgsImV4cCI6MjA5MDIxNTczOH0.FrcUgasCCt2FRsLPO_d6RUDTZUbOMjWezl9LL_9oaXw';
-const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+let supabaseClient = null;
 
 async function loadFromSupabase() {
   try {
+    if(!window.supabase) {
+      alert("Erro Crítico: Supabase não foi carregado pelo navegador. Verifique sua rede.");
+      return;
+    }
+    if(!supabaseClient) {
+      supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+    }
     const [resU, resC, resCamp, resA] = await Promise.all([
-      supabase.from('users').select('*'),
-      supabase.from('clientes').select('*'),
-      supabase.from('campanhas').select('*'),
-      supabase.from('agenda').select('*')
+      supabaseClient.from('users').select('*'),
+      supabaseClient.from('clientes').select('*'),
+      supabaseClient.from('campanhas').select('*'),
+      supabaseClient.from('agenda').select('*')
     ]);
     
     if (resU.data && resU.data.length > 0) USERS = resU.data;
@@ -105,12 +112,13 @@ const DAY_DATES={seg:'10/02',ter:'11/02',qua:'12/02',qui:'13/02',sex:'14/02'};
 // --- Persistence Helpers ---
 async function saveAll(){
   try {
-    if(USERS.length > 0) await supabase.from('users').upsert(USERS);
-    if(CLIENTES.length > 0) await supabase.from('clientes').upsert(CLIENTES);
-    if(CAMPANHAS.length > 0) await supabase.from('campanhas').upsert(CAMPANHAS);
+    if(!supabaseClient) return;
+    if(USERS.length > 0) await supabaseClient.from('users').upsert(USERS);
+    if(CLIENTES.length > 0) await supabaseClient.from('clientes').upsert(CLIENTES);
+    if(CAMPANHAS.length > 0) await supabaseClient.from('campanhas').upsert(CAMPANHAS);
     
     const agendaUpserts = Object.keys(AGENDA).map(day => ({ id: day, tasks: AGENDA[day] }));
-    await supabase.from('agenda').upsert(agendaUpserts);
+    await supabaseClient.from('agenda').upsert(agendaUpserts);
   } catch(e) {
     console.error("Erro ao salvar no Supabase:", e);
   }
