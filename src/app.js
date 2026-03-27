@@ -54,10 +54,45 @@ const DEFAULT_CAMPANHAS=[
 ];
 
 // --- Live Data (Initialized from Storage or Defaults) ---
-let USERS = JSON.parse(localStorage.getItem(ST_USERS)) || [...DEFAULT_USERS];
-let CLIENTES = JSON.parse(localStorage.getItem(ST_CLI)) || [...DEFAULT_CLIENTES];
-let CAMPANHAS = JSON.parse(localStorage.getItem(ST_CAMP)) || [...DEFAULT_CAMPANHAS];
-let AGENDA = JSON.parse(localStorage.getItem(ST_AGENDA)) || {seg:[],ter:[{id:'t1',text:'Visita Rede Econômica',type:'visita'}],qua:[],qui:[],sex:[]};
+let USERS = [...DEFAULT_USERS];
+let CLIENTES = [...DEFAULT_CLIENTES];
+let CAMPANHAS = [...DEFAULT_CAMPANHAS];
+let AGENDA = {seg:[],ter:[{id:'t1',text:'Visita Rede Econômica',type:'visita'}],qua:[],qui:[],sex:[]};
+
+const supabaseUrl = 'https://kudfexbgjwayxppnfcyh.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1ZGZleGJnandheXhwcG5mY3loIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2Mzk3MzgsImV4cCI6MjA5MDIxNTczOH0.FrcUgasCCt2FRsLPO_d6RUDTZUbOMjWezl9LL_9oaXw';
+const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+async function loadFromSupabase() {
+  try {
+    const [resU, resC, resCamp, resA] = await Promise.all([
+      supabase.from('users').select('*'),
+      supabase.from('clientes').select('*'),
+      supabase.from('campanhas').select('*'),
+      supabase.from('agenda').select('*')
+    ]);
+    
+    if (resU.data && resU.data.length > 0) USERS = resU.data;
+    if (resC.data && resC.data.length > 0) CLIENTES = resC.data;
+    if (resCamp.data && resCamp.data.length > 0) {
+      // Garantir compatibilidade com objetos JSON do localStorage
+      CAMPANHAS = resCamp.data.map(c => ({
+        ...c,
+        planejamentos: typeof c.planejamentos === 'string' ? JSON.parse(c.planejamentos) : (c.planejamentos || {})
+      }));
+    }
+    if (resA.data && resA.data.length > 0) {
+      const newAgenda = {};
+      resA.data.forEach(row => { 
+        newAgenda[row.id] = typeof row.tasks === 'string' ? JSON.parse(row.tasks) : (row.tasks || []); 
+      });
+      ['seg','ter','qua','qui','sex'].forEach(d => { if(!newAgenda[d]) newAgenda[d] = []; });
+      AGENDA = newAgenda;
+    }
+  } catch(e) {
+    console.error("Erro carregando do Supabase:", e);
+  }
+}
 
 // Compatibility with existing code
 let VENDEDORES = VENDEDORES_INFO; 
@@ -68,11 +103,17 @@ const DAY_NAMES={seg:'Segunda',ter:'Terça',qua:'Quarta',qui:'Quinta',sex:'Sexta
 const DAY_DATES={seg:'10/02',ter:'11/02',qua:'12/02',qui:'13/02',sex:'14/02'};
 
 // --- Persistence Helpers ---
-function saveAll(){
-  localStorage.setItem(ST_CLI, JSON.stringify(CLIENTES));
-  localStorage.setItem(ST_CAMP, JSON.stringify(CAMPANHAS));
-  localStorage.setItem(ST_AGENDA, JSON.stringify(AGENDA));
-  localStorage.setItem(ST_USERS, JSON.stringify(USERS));
+async function saveAll(){
+  try {
+    if(USERS.length > 0) await supabase.from('users').upsert(USERS);
+    if(CLIENTES.length > 0) await supabase.from('clientes').upsert(CLIENTES);
+    if(CAMPANHAS.length > 0) await supabase.from('campanhas').upsert(CAMPANHAS);
+    
+    const agendaUpserts = Object.keys(AGENDA).map(day => ({ id: day, tasks: AGENDA[day] }));
+    await supabase.from('agenda').upsert(agendaUpserts);
+  } catch(e) {
+    console.error("Erro ao salvar no Supabase:", e);
+  }
 }
 function toggleTheme(){
   const isDark = document.body.classList.toggle('dark');
@@ -706,7 +747,16 @@ function addTask(day){const input=document.getElementById('ti-'+day);const text=
 function delTask(day,id){AGENDA[day]=AGENDA[day].filter(t=>t.id!==id);saveAll();renderAgenda();}
 
 // Initialize App
-window.onload = () => {
+window.onload = async () => {
   loadTheme();
+  
+  const sn = document.getElementById('snack');
+  if(sn) { sn.textContent = 'Sincronizando banco de dados...'; sn.classList.add('show'); }
+  
+  await loadFromSupabase();
+  VENDEDORES = USERS.filter(u => u.role === 'v'); // Atualiza lista de vendedores com dados do DB
+  
+  if(sn) sn.classList.remove('show');
+  
   renderNotifs();
 };
