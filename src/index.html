@@ -247,14 +247,14 @@
             <h3>Informações pessoais</h3>
             <button class="btn btn-o btn-sm" onclick="toggleTheme()">🌓 Alternar Tema</button>
           </div>
-          <div class="field"><label>Nome completo</label><input id="pv-nome-i" value="Rafael Mendes" oninput="sync('pv-nome-i','pv-nome')"></div>
-          <div class="field"><label>Email</label><input value="rafael@abc.com"></div>
-          <div class="field"><label>CPF</label><input value="123.456.789-00"></div>
-          <div class="field"><label>Empresa</label><input value="ABC Distribuidora"></div>
-          <div class="field"><label>Telefone</label><input placeholder="(81) 99999-9999"></div>
-          <div class="field"><label>Cidade / Estado</label><input placeholder="Ex: Recife, PE"></div>
+          <div class="field"><label>Nome completo</label><input id="pv-nome-i" value="" oninput="sync('pv-nome-i','pv-nome')"></div>
+          <div class="field"><label>Email</label><input id="pv-email-i" value=""></div>
+          <div class="field"><label>CPF</label><input id="pv-cpf-i" value=""></div>
+          <div class="field"><label>Empresa</label><input id="pv-empresa-i" value=""></div>
+          <div class="field"><label>Telefone</label><input id="pv-tel-i" placeholder="(81) 99999-9999"></div>
+          <div class="field"><label>Cidade / Estado</label><input id="pv-cidade-i" placeholder="Ex: Recife, PE"></div>
           <div class="field"><label>Sobre mim</label><textarea id="pv-sobre" placeholder="Conte sobre você..." oninput="syncSobre('pv-sobre','pv-sobre-disp')"></textarea></div>
-          <button class="btn btn-p btn-full" onclick="snack('Perfil atualizado!')">Salvar alterações</button>
+          <button class="btn btn-p btn-full" onclick="salvarPerfilV()">Salvar alterações</button>
         </div>
         <button class="btn btn-danger btn-full" onclick="askLogout()">Sair da conta</button>
       </div>
@@ -380,12 +380,12 @@
             <h3>Informações pessoais</h3>
             <button class="btn btn-o btn-sm" onclick="toggleTheme()">🌓 Alternar Tema</button>
           </div>
-          <div class="field"><label>Nome completo</label><input id="pg-nome-i" value="Ana Gerente" oninput="sync('pg-nome-i','pg-nome')"></div>
-          <div class="field"><label>Email</label><input value="ana@abc.com"></div>
-          <div class="field"><label>Empresa</label><input value="ABC Distribuidora"></div>
-          <div class="field"><label>Cargo</label><input value="Gerente Comercial"></div>
+          <div class="field"><label>Nome completo</label><input id="pg-nome-i" value="" oninput="sync('pg-nome-i','pg-nome')"></div>
+          <div class="field"><label>Email</label><input id="pg-email-i" value=""></div>
+          <div class="field"><label>Empresa</label><input id="pg-empresa-i" value=""></div>
+          <div class="field"><label>Cargo</label><input id="pg-cargo-i" value=""></div>
           <div class="field"><label>Sobre mim</label><textarea id="pg-sobre" placeholder="Fale sobre sua trajetória..." oninput="syncSobre('pg-sobre','pg-sobre-disp')"></textarea></div>
-          <button class="btn btn-d btn-full" onclick="snack('Perfil atualizado!')">Salvar alterações</button>
+          <button class="btn btn-d btn-full" onclick="salvarPerfilG()">Salvar alterações</button>
         </div>
         <button class="btn btn-danger btn-full" onclick="askLogout()">Sair da conta</button>
       </div>

@@ -22,8 +22,8 @@ let currentUser = null;
 
 // --- Default Data ---
 const DEFAULT_USERS=[
-  {id:'v1',nome:'Rafael Mendes',initials:'RM',avClass:'av-o',email:'rafael@abc.com',pass:'1234',role:'v',empresa:'ABC Distribuidora'},
-  {id:'g1',nome:'Ana Gerente',initials:'AG',avClass:'av-d',email:'ana@abc.com',pass:'1234',role:'g',empresa:'ABC Distribuidora'}
+  {id:'v1',nome:'Rafael Mendes',initials:'RM',avClass:'av-o',email:'rafael@abc.com',pass:'1234',role:'v',empresa:'ABC Distribuidora',empresaId:'emp1'},
+  {id:'g1',nome:'Ana Gerente',initials:'AG',avClass:'av-d',email:'ana@abc.com',pass:'1234',role:'g',empresa:'ABC Distribuidora',empresaId:'emp1'}
 ];
 const VENDEDORES_INFO = [
   {id:'v1',nome:'Rafael Mendes',initials:'RM',avClass:'av-o'},
@@ -40,14 +40,14 @@ const DEFAULT_CLIENTES=[
 ];
 
 const DEFAULT_CAMPANHAS=[
-  {id:'camp1',nome:'Mega Verão 2025',emoji:'☀️',produto:'Refrigerante 2L',meta:12000,premio:'R$ 1.500 + Voucher',ini:'2025-01-01',fim:'2025-02-28',status:'ativa',planejamentos:{
+  {id:'camp1',nome:'Mega Verão 2025',emoji:'☀️',produto:'Refrigerante 2L',meta:12000,premio:'R$ 1.500 + Voucher',ini:'2025-01-01',fim:'2025-02-28',status:'ativa',empresaId:'emp1',planejamentos:{
     'v1':{planejado:5000,vendido:5200,clientes:['c1','c2']},
     'v2':{planejado:4000,vendido:2100,clientes:['c2']}
   }},
-  {id:'camp2',nome:'Festival de Limpeza',emoji:'✨',produto:'Sabão em Pó 1kg',meta:8000,premio:'iPhone 15',ini:'2025-02-15',fim:'2025-03-31',status:'ativa',planejamentos:{
+  {id:'camp2',nome:'Festival de Limpeza',emoji:'✨',produto:'Sabão em Pó 1kg',meta:8000,premio:'iPhone 15',ini:'2025-02-15',fim:'2025-03-31',status:'ativa',empresaId:'emp1',planejamentos:{
     'v1':{planejado:3000,vendido:800,clientes:['c1','c3']}
   }},
-  {id:'camp3',nome:'Junho Premiado',emoji:'🌽',produto:'Milho de Pipoca',meta:5000,premio:'R$ 500',ini:'2024-06-01',fim:'2024-06-30',status:'encerrada',planejamentos:{
+  {id:'camp3',nome:'Junho Premiado',emoji:'🌽',produto:'Milho de Pipoca',meta:5000,premio:'R$ 500',ini:'2024-06-01',fim:'2024-06-30',status:'encerrada',empresaId:'emp1',planejamentos:{
     'v1':{planejado:2000,vendido:2500,clientes:['c2']},
     'v2':{planejado:2000,vendido:1800,clientes:['c1']}
   }}
@@ -154,7 +154,7 @@ window.onclick=function(e){if(!e.target.closest('.notif-panel')&&!e.target.close
 // ======================== HELPERS ========================
 const fmtR=v=>(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const fmtDate=s=>{if(!s)return'—';const[y,m,d]=s.split('-');return `${d}/${m}`;}
-function myPlan(c){return c.planejamentos['v1'];}
+function myPlan(c){return currentUser ? c.planejamentos[currentUser.id] : null;}
 function calcPremio(c,p){
   const planejado=p.planejado||0;
   const vendido=p.vendido||0;
@@ -163,6 +163,11 @@ function calcPremio(c,p){
   if(vendido>=c.meta)status='premiado';
   else if(vendido>=planejado&&planejado>0)status='superou_plan';
   return {status,pct,faltaMeta:c.meta-vendido,faltaPlan:planejado-vendido};
+}
+
+function getMinhasCampanhas() {
+  if(!currentUser) return [];
+  return CAMPANHAS.filter(c => !c.empresaId || c.empresaId === currentUser.empresaId);
 }
 
 // ======================== ACTIONS ========================
@@ -196,6 +201,7 @@ function doLogin(){
     
     currentUser = user;
     userRole = user.role;
+    VENDEDORES = USERS.filter(u => u.role === 'v' && u.empresaId === currentUser.empresaId);
     
     syncUserUI();
     
@@ -221,7 +227,10 @@ function doRegister(){
   const initials = nome.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
   const avClass = userRole==='v' ? 'av-o' : 'av-d';
   
-  const newUser = { id, nome, email, cpf, empresa, pass, role: userRole, initials, avClass };
+  const existingUser = USERS.find(u => u.empresa && u.empresa.toLowerCase() === empresa.toLowerCase());
+  const empresaId = existingUser ? existingUser.empresaId : 'emp' + Date.now();
+  
+  const newUser = { id, nome, email, cpf, empresa, empresaId, pass, role: userRole, initials, avClass };
   USERS.push(newUser);
   saveAll();
   
@@ -238,17 +247,55 @@ function syncUserUI(){
   document.querySelectorAll('.nav-name').forEach(el => el.textContent = `Oi, ${firstName}`);
   
   document.querySelectorAll('.nav-avatar, .photo-circle').forEach(el => {
-    if(!el.querySelector('img')) el.textContent = init;
+    if(currentUser.photo){ el.innerHTML = `<img src="${currentUser.photo}">`; }
+    else if(!el.querySelector('img')) el.textContent = init;
   });
   
-  // Profile screens
   if(userRole==='v'){
     document.getElementById('pv-nome').textContent = name;
     document.getElementById('pv-nome-i').value = name;
+    document.getElementById('pv-email-i').value = currentUser.email || '';
+    document.getElementById('pv-cpf-i').value = currentUser.cpf || '';
+    document.getElementById('pv-empresa-i').value = currentUser.empresa || '';
+    document.getElementById('pv-tel-i').value = currentUser.telefone || '';
+    document.getElementById('pv-cidade-i').value = currentUser.cidade || '';
+    document.getElementById('pv-sobre').value = currentUser.sobre || '';
+    syncSobre('pv-sobre','pv-sobre-disp');
   } else {
     document.getElementById('pg-nome').textContent = name;
     document.getElementById('pg-nome-i').value = name;
+    document.getElementById('pg-email-i').value = currentUser.email || '';
+    document.getElementById('pg-empresa-i').value = currentUser.empresa || '';
+    document.getElementById('pg-cargo-i').value = currentUser.cargo || '';
+    document.getElementById('pg-sobre').value = currentUser.sobre || '';
+    syncSobre('pg-sobre','pg-sobre-disp');
   }
+}
+
+function salvarPerfilV() {
+  if(!currentUser) return;
+  currentUser.nome = document.getElementById('pv-nome-i').value.trim();
+  currentUser.email = document.getElementById('pv-email-i').value.trim();
+  currentUser.cpf = document.getElementById('pv-cpf-i').value.trim();
+  currentUser.empresa = document.getElementById('pv-empresa-i').value.trim();
+  currentUser.telefone = document.getElementById('pv-tel-i').value.trim();
+  currentUser.cidade = document.getElementById('pv-cidade-i').value.trim();
+  currentUser.sobre = document.getElementById('pv-sobre').value.trim();
+  const userIndex = USERS.findIndex(u => u.id === currentUser.id);
+  if(userIndex > -1){ USERS[userIndex] = currentUser; saveAll(); }
+  syncUserUI(); snack('Perfil atualizado com sucesso!');
+}
+
+function salvarPerfilG() {
+  if(!currentUser) return;
+  currentUser.nome = document.getElementById('pg-nome-i').value.trim();
+  currentUser.email = document.getElementById('pg-email-i').value.trim();
+  currentUser.empresa = document.getElementById('pg-empresa-i').value.trim();
+  currentUser.cargo = document.getElementById('pg-cargo-i').value.trim();
+  currentUser.sobre = document.getElementById('pg-sobre').value.trim();
+  const userIndex = USERS.findIndex(u => u.id === currentUser.id);
+  if(userIndex > -1){ USERS[userIndex] = currentUser; saveAll(); }
+  syncUserUI(); snack('Perfil atualizado com sucesso!');
 }
 
 
@@ -290,8 +337,14 @@ function prevPhoto(input,circId,navIds){
   if(input.files&&input.files[0]){
     const reader=new FileReader();
     reader.onload=e=>{
-      document.getElementById(circId).innerHTML=`<img src="${e.target.result}">`;
-      navIds.forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=`<img src="${e.target.result}">`;});
+      const result = e.target.result;
+      document.getElementById(circId).innerHTML=`<img src="${result}">`;
+      navIds.forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=`<img src="${result}">`;});
+      if(currentUser) {
+        currentUser.photo = result;
+        const userIndex = USERS.findIndex(u => u.id === currentUser.id);
+        if(userIndex > -1) { USERS[userIndex] = currentUser; saveAll(); }
+      }
     };
     reader.readAsDataURL(input.files[0]);
   }
@@ -348,7 +401,8 @@ function pushNotif(type,title){NOTIFS.unshift({id:'n'+Date.now(),type,title,time
 
 // ======================== RENDER VENDEDOR ========================
 function renderHV(){
-  const ativas=CAMPANHAS.filter(c=>c.status==='ativa');
+  const minhasCampanhas=getMinhasCampanhas();
+  const ativas=minhasCampanhas.filter(c=>c.status==='ativa');
   const comPlan=ativas.filter(c=>myPlan(c));
   const semPlan=ativas.filter(c=>!myPlan(c));
   const premiadas=ativas.filter(c=>{const p=myPlan(c);return p&&p.vendido>=c.meta;});
@@ -384,11 +438,12 @@ function renderHV(){
 
 function renderCV(){
   const search = document.getElementById('search-cv').value.toLowerCase();
-  const ativas=CAMPANHAS.filter(c=>c.status==='ativa');
+  const minhasCampanhas=getMinhasCampanhas();
+  const ativas=minhasCampanhas.filter(c=>c.status==='ativa');
   const comPlan=ativas.filter(c=>myPlan(c));
   const semPlan=ativas.filter(c=>!myPlan(c));
-  const encerradas=CAMPANHAS.filter(c=>c.status==='encerrada');
-  let filtradas=vFiltro==='ativas'?ativas:vFiltro==='encerradas'?encerradas:CAMPANHAS;
+  const encerradas=minhasCampanhas.filter(c=>c.status==='encerrada');
+  let filtradas=vFiltro==='ativas'?ativas:vFiltro==='encerradas'?encerradas:minhasCampanhas;
   
   if(search) filtradas = filtradas.filter(c => c.nome.toLowerCase().includes(search) || c.produto.toLowerCase().includes(search));
 
@@ -475,7 +530,8 @@ function salvarPlanejamento(){
   const vend=parseInt(document.getElementById('plan-vendido').value)||0;
   if(!plan){snack('Informe o valor planejado!');return;}
   planTemp.planejado=plan;planTemp.vendido=vend;
-  campAtiva.planejamentos['v1']=JSON.parse(JSON.stringify(planTemp));
+  if(!currentUser) return;
+  campAtiva.planejamentos[currentUser.id]=JSON.parse(JSON.stringify(planTemp));
   saveAll();
   snack('Planejamento salvo!');back();renderCV();renderHV();
 }
@@ -545,7 +601,7 @@ function addCliente(){
 
 // ======================== RENDER GERENTE ========================
 function renderHG(){
-  const ativas=CAMPANHAS.filter(c=>c.status==='ativa');
+  const ativas=getMinhasCampanhas().filter(c=>c.status==='ativa');
   const comPlanVs=VENDEDORES.filter(v=>ativas.some(c=>c.planejamentos[v.id]));
   const semPlan=VENDEDORES.filter(v=>!ativas.some(c=>c.planejamentos[v.id]));
   // premiados = vendeu acima do planejado em pelo menos 1 campanha
@@ -576,7 +632,8 @@ function notificarVendedor(nome){
 
 function renderCG(){
   const search = document.getElementById('search-cg').value.toLowerCase();
-  let filtradas=CAMPANHAS.filter(c=>campFiltro==='todas'||c.status===campFiltro);
+  const minhasCampanhas = getMinhasCampanhas();
+  let filtradas=minhasCampanhas.filter(c=>campFiltro==='todas'||c.status===campFiltro);
   if(search) filtradas = filtradas.filter(c => c.nome.toLowerCase().includes(search) || c.produto.toLowerCase().includes(search));
 
   document.getElementById('cg-body').innerHTML=`
@@ -612,10 +669,11 @@ function renderEquipe(){
   document.getElementById('equipe-body').innerHTML=`
     <div><h2>Equipe</h2><p class="muted" style="margin-top:2px;">${VENDEDORES.length} vendedores · ABC Distribuidora</p></div>
     <div class="card" style="padding:12px 14px;">${VENDEDORES.map(v=>{
-      const totalVend=CAMPANHAS.reduce((a,c)=>{const p=c.planejamentos[v.id];return a+(p?p.vendido:0);},0);
-      const totalPlan=CAMPANHAS.reduce((a,c)=>{const p=c.planejamentos[v.id];return a+(p?p.planejado:0);},0);
+      const minhasCampanhas = getMinhasCampanhas();
+      const totalVend=minhasCampanhas.reduce((a,c)=>{const p=c.planejamentos[v.id];return a+(p?p.vendido:0);},0);
+      const totalPlan=minhasCampanhas.reduce((a,c)=>{const p=c.planejamentos[v.id];return a+(p?p.planejado:0);},0);
       const superou=totalVend>=totalPlan&&totalPlan>0;
-      const nCamp=CAMPANHAS.filter(c=>c.planejamentos[v.id]).length;
+      const nCamp=minhasCampanhas.filter(c=>c.planejamentos[v.id]).length;
       return`<div class="srow"><div class="av ${v.avClass}">${v.initials}</div><div style="flex:1;"><div class="strong">${v.nome}</div><div class="muted">${nCamp} camp. · ${fmtR(totalVend)} vendido</div></div><span class="tag ${superou?'t-g':nCamp?'t-o':'t-d'}">${superou?'Premiado':nCamp?'Em andamento':'—'}</span></div>`;}).join('')}</div>
   `;}
 
@@ -708,7 +766,7 @@ function criarCampanha(){
   const id='camp'+Date.now();
   const emojis=['🎯','⭐','🚀','🏆','💥'];
   const emoji=emojis[Math.floor(Math.random()*emojis.length)];
-  CAMPANHAS.unshift({id,nome,emoji,produto:prod,desc,meta,premio:premio||'A definir',ini,fim,status:'ativa',planejamentos:{}});
+  CAMPANHAS.unshift({id,nome,emoji,produto:prod,desc,meta,premio:premio||'A definir',ini,fim,status:'ativa',planejamentos:{}, empresaId: currentUser.empresaId});
   saveAll();
   ['nc-campnome','nc-prod','nc-desc','nc-ini','nc-fim','nc-meta','nc-premio'].forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
   pushNotif('camp',`Nova campanha criada: ${nome}`);
@@ -762,7 +820,7 @@ window.onload = async () => {
   if(sn) { sn.textContent = 'Sincronizando banco de dados...'; sn.classList.add('show'); }
   
   await loadFromSupabase();
-  VENDEDORES = USERS.filter(u => u.role === 'v'); // Atualiza lista de vendedores com dados do DB
+  VENDEDORES = USERS.filter(u => u.role === 'v'); // A atualização final por empresa ocorrerá no doLogin
   
   if(sn) sn.classList.remove('show');
   

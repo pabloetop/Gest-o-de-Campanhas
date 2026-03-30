@@ -12,6 +12,21 @@ e este projeto segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [1.8.0] — 2026-03-30
+
+### Adicionado
+- Salvamento de foto de perfil em string Base64 persistida no banco de dados.
+- Escopo de visualização de Campanhas e Equipes isolado automaticamente pelo ID da Empresa (`empresaId`).
+
+### Alterado
+- Os campos do Perfil (Email, CPF, Empresa, Cargo, Telefone, Cidade) agora são carregados dinamicamente dos dados da sessão do usuário atual.
+- O cadastro de usuários (Vendedores/Gerentes) com o mesmo nome de empresa unifica ambos sob um mesmo `empresaId` primário.
+
+### Corrigido
+- Planejamento de campanhas agora é salvo corretamente usando a identificação isolada de cada vendedor (`currentUser.id`), e não mais fixado no ID `v1`.
+
+---
+
 ## [1.7.0] — 2025-03-19
 
 ### Adicionado
