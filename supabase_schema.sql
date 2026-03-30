@@ -7,10 +7,16 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT UNIQUE NOT NULL,
     cpf TEXT,
     empresa TEXT,
+    "empresaId" TEXT,
     pass TEXT NOT NULL,
     role TEXT NOT NULL,
     initials TEXT,
-    "avClass" TEXT
+    "avClass" TEXT,
+    photo TEXT,
+    telefone TEXT,
+    cidade TEXT,
+    cargo TEXT,
+    sobre TEXT
 );
 
 -- 2. Tabela de Clientes
@@ -37,6 +43,7 @@ CREATE TABLE IF NOT EXISTS campanhas (
     ini TEXT,
     fim TEXT,
     status TEXT DEFAULT 'ativa',
+    "empresaId" TEXT,
     planejamentos JSONB DEFAULT '{}'::jsonb
 );
 
@@ -77,3 +84,15 @@ ALTER TABLE users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE clientes DISABLE ROW LEVEL SECURITY;
 ALTER TABLE campanhas DISABLE ROW LEVEL SECURITY;
 ALTER TABLE agenda DISABLE ROW LEVEL SECURITY;
+
+-- ==========================================
+-- SCRIPT DE ATUALIZAÇÃO (RODAR NO SUPABASE SE AS TABELAS JÁ EXISTIREM)
+-- ==========================================
+ALTER TABLE users ADD COLUMN IF NOT EXISTS "empresaId" TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS photo TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS telefone TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS cidade TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS cargo TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS sobre TEXT;
+
+ALTER TABLE campanhas ADD COLUMN IF NOT EXISTS "empresaId" TEXT;
