@@ -1,98 +1,198 @@
--- Schema para a aplicação ETOP (Supabase)
+-- ============================================================
+-- ETOP Plataforma — Schema Completo v2.0
+-- Suporta: Multi-tenant por empresa, Supabase Auth, Storage
+-- ============================================================
 
--- 1. Tabela de Usuários
+-- 0. Limpar tabelas antigas se necessário (cuidado em produção!)
+-- DROP TABLE IF EXISTS notificacoes, planejamentos, agenda, campanhas, clientes, users, empresas CASCADE;
+
+-- =====================================================
+-- 1. EMPRESAS (Multi-tenant root)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS empresas (
+  id TEXT PRIMARY KEY,
+  nome TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- =====================================================
+-- 2. USERS (perfis públicos, vinculados ao supabase auth)
+-- =====================================================
+-- IMPORTANTE: id deve ser o mesmo UUID do auth.users
 CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    nome TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    cpf TEXT,
-    empresa TEXT,
-    "empresaId" TEXT,
-    pass TEXT NOT NULL,
-    role TEXT NOT NULL,
-    initials TEXT,
-    "avClass" TEXT,
-    photo TEXT,
-    telefone TEXT,
-    cidade TEXT,
-    cargo TEXT,
-    sobre TEXT
+  id TEXT PRIMARY KEY,
+  nome TEXT NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  cpf TEXT,
+  empresa TEXT,
+  empresa_id TEXT REFERENCES empresas(id),
+  role TEXT NOT NULL DEFAULT 'v' CHECK (role IN ('v','g')),
+  initials TEXT,
+  av_class TEXT,
+  photo_url TEXT,
+  telefone TEXT,
+  cidade TEXT,
+  cargo TEXT,
+  sobre TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. Tabela de Clientes
+-- =====================================================
+-- 3. CLIENTES (por empresa)
+-- =====================================================
 CREATE TABLE IF NOT EXISTS clientes (
-    id TEXT PRIMARY KEY,
-    nome TEXT NOT NULL,
-    resp TEXT,
-    lojas INTEGER DEFAULT 0,
-    dia TEXT,
-    tel TEXT,
-    "end" TEXT,
-    obs TEXT
+  id TEXT PRIMARY KEY,
+  nome TEXT NOT NULL,
+  resp TEXT,
+  lojas INTEGER DEFAULT 0,
+  dia TEXT,
+  tel TEXT,
+  "end" TEXT,
+  obs TEXT,
+  empresa_id TEXT REFERENCES empresas(id),
+  vendedor_id TEXT REFERENCES users(id)
 );
 
--- 3. Tabela de Campanhas
+-- =====================================================
+-- 4. CAMPANHAS (por empresa)
+-- =====================================================
 CREATE TABLE IF NOT EXISTS campanhas (
-    id TEXT PRIMARY KEY,
-    nome TEXT NOT NULL,
-    emoji TEXT,
-    produto TEXT,
-    "desc" TEXT,
-    meta NUMERIC DEFAULT 0,
-    premio TEXT,
-    ini TEXT,
-    fim TEXT,
-    status TEXT DEFAULT 'ativa',
-    "empresaId" TEXT,
-    planejamentos JSONB DEFAULT '{}'::jsonb
+  id TEXT PRIMARY KEY,
+  nome TEXT NOT NULL,
+  emoji TEXT,
+  produto TEXT,
+  "desc" TEXT,
+  meta NUMERIC DEFAULT 0,
+  premio TEXT,
+  ini TEXT,
+  fim TEXT,
+  status TEXT DEFAULT 'ativa',
+  empresa_id TEXT REFERENCES empresas(id),
+  planejamentos JSONB DEFAULT '{}'::jsonb
 );
 
--- 4. Tabela de Agenda (Simples, como chave-valor)
+-- =====================================================
+-- 5. PLANEJAMENTOS (tabela normalizada para analytics)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS planejamentos (
+  id TEXT PRIMARY KEY,
+  campanha_id TEXT NOT NULL REFERENCES campanhas(id) ON DELETE CASCADE,
+  vendedor_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  valor_planejado NUMERIC DEFAULT 0,
+  valor_vendido NUMERIC DEFAULT 0,
+  clientes_vinculados JSONB DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(campanha_id, vendedor_id)
+);
+
+-- =====================================================
+-- 6. AGENDA (por empresa, chave composta)
+-- =====================================================
 CREATE TABLE IF NOT EXISTS agenda (
-    id TEXT PRIMARY KEY,
-    tasks JSONB DEFAULT '[]'::jsonb
+  empresa_id TEXT NOT NULL REFERENCES empresas(id),
+  dia TEXT NOT NULL CHECK (dia IN ('seg','ter','qua','qui','sex')),
+  tasks JSONB DEFAULT '[]'::jsonb,
+  PRIMARY KEY (empresa_id, dia)
 );
 
--- INSERIR DADOS PADRÃO (Para testar no início, igual ao JS)
-INSERT INTO users (id, nome, email, pass, role, initials, "avClass", empresa) VALUES
-('v1', 'Rafael Mendes', 'rafael@abc.com', '1234', 'v', 'RM', 'av-o', 'ABC Distribuidora'),
-('g1', 'Ana Gerente', 'ana@abc.com', '1234', 'g', 'AG', 'av-d', 'ABC Distribuidora')
+-- =====================================================
+-- 7. NOTIFICACOES (persistidas por usuário)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS notificacoes (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type TEXT DEFAULT 'lembrete',
+  title TEXT NOT NULL,
+  unread BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- =====================================================
+-- DADOS PADRÃO DE DEMONSTRAÇÃO
+-- (Inserir empresa inicial para testes)
+-- =====================================================
+INSERT INTO empresas (id, nome) VALUES
+  ('emp1', 'ABC Distribuidora')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO clientes (id, nome, resp, lojas, dia, tel, "end") VALUES
-('c1', 'Mercadinho do João', 'João Silva', 1, 'Segunda-feira', '(81) 98877-6655', 'Rua das Flores, 12, Centro'),
-('c2', 'Rede Econômica', 'Marta Souza', 4, 'Terça-feira', '(81) 3456-7890', 'Av. Principal, 500, Boa Viagem'),
-('c3', 'Armazém Porto', 'Ricardo Porto', 1, 'Quarta-feira', '(81) 99221-3344', 'Rua do Sol, 88, Olinda')
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO campanhas (id, nome, emoji, produto, meta, premio, ini, fim, status, planejamentos) VALUES
-('camp1', 'Mega Verão 2025', '☀️', 'Refrigerante 2L', 12000, 'R$ 1.500 + Voucher', '2025-01-01', '2025-02-28', 'ativa', '{"v1": {"vendido": 5200, "clientes": ["c1", "c2"], "planejado": 5000}, "v2": {"vendido": 2100, "clientes": ["c2"], "planejado": 4000}}'::jsonb),
-('camp2', 'Festival de Limpeza', '✨', 'Sabão em Pó 1kg', 8000, 'iPhone 15', '2025-02-15', '2025-03-31', 'ativa', '{"v1": {"vendido": 800, "clientes": ["c1", "c3"], "planejado": 3000}}'::jsonb)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO agenda (id, tasks) VALUES
-('seg', '[]'::jsonb),
-('ter', '[{"id": "t1", "text": "Visita Rede Econômica", "type": "visita"}]'::jsonb),
-('qua', '[]'::jsonb),
-('qui', '[]'::jsonb),
-('sex', '[]'::jsonb)
-ON CONFLICT (id) DO NOTHING;
-
--- Bypassing RLS (Row Level Security) for initial frontend communication
--- As policies would make fetching complex right now.
+-- =====================================================
+-- DESABILITAR RLS (simplificado para fase de desenvolvimento)
+-- Habilitar e configurar políticas antes de ir a produção
+-- =====================================================
+ALTER TABLE empresas DISABLE ROW LEVEL SECURITY;
 ALTER TABLE users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE clientes DISABLE ROW LEVEL SECURITY;
 ALTER TABLE campanhas DISABLE ROW LEVEL SECURITY;
+ALTER TABLE planejamentos DISABLE ROW LEVEL SECURITY;
 ALTER TABLE agenda DISABLE ROW LEVEL SECURITY;
+ALTER TABLE notificacoes DISABLE ROW LEVEL SECURITY;
 
--- ==========================================
--- SCRIPT DE ATUALIZAÇÃO (RODAR NO SUPABASE SE AS TABELAS JÁ EXISTIREM)
--- ==========================================
-ALTER TABLE users ADD COLUMN IF NOT EXISTS "empresaId" TEXT;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS photo TEXT;
+-- =====================================================
+-- SCRIPT DE MIGRAÇÃO (rodar se as tabelas já existiam antes)
+-- Execute apenas se estiver atualizando de uma versão anterior
+-- =====================================================
+
+-- Renomear coluna empresaId para empresa_id em users
+-- ALTER TABLE users RENAME COLUMN "empresaId" TO empresa_id;
+
+-- Renomear coluna empresaId para empresa_id em campanhas
+-- ALTER TABLE campanhas RENAME COLUMN "empresaId" TO empresa_id;
+
+-- Adicionar colunas novas em users (se não existirem)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS empresa_id TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS telefone TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS cidade TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS cargo TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS sobre TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS av_class TEXT;
 
-ALTER TABLE campanhas ADD COLUMN IF NOT EXISTS "empresaId" TEXT;
+-- Criar coluna empresa_id em campanhas (se não existir, converte de empresaId)
+ALTER TABLE campanhas ADD COLUMN IF NOT EXISTS empresa_id TEXT;
+UPDATE campanhas SET empresa_id = "empresaId" WHERE empresa_id IS NULL AND "empresaId" IS NOT NULL;
+
+-- Adicionar empresa_id em clientes
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS empresa_id TEXT;
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS vendedor_id TEXT;
+
+-- Recriar agenda com suporte multi-tenant
+-- ATENÇÃO: Os dados existentes de agenda serão perdidos nesta migração!
+-- Faça backup antes se necessário.
+-- DROP TABLE IF EXISTS agenda;
+-- CREATE TABLE IF NOT EXISTS agenda (
+--   empresa_id TEXT NOT NULL,
+--   dia TEXT NOT NULL CHECK (dia IN ('seg','ter','qua','qui','sex')),
+--   tasks JSONB DEFAULT '[]'::jsonb,
+--   PRIMARY KEY (empresa_id, dia)
+-- );
+
+-- Criar tabela planejamentos se não existir
+CREATE TABLE IF NOT EXISTS planejamentos (
+  id TEXT PRIMARY KEY,
+  campanha_id TEXT,
+  vendedor_id TEXT,
+  valor_planejado NUMERIC DEFAULT 0,
+  valor_vendido NUMERIC DEFAULT 0,
+  clientes_vinculados JSONB DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(campanha_id, vendedor_id)
+);
+
+-- Criar tabela notificacoes se não existir
+CREATE TABLE IF NOT EXISTS notificacoes (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  type TEXT DEFAULT 'lembrete',
+  title TEXT NOT NULL,
+  unread BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Criar tabela empresas se não existir
+CREATE TABLE IF NOT EXISTS empresas (
+  id TEXT PRIMARY KEY,
+  nome TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+INSERT INTO empresas (id, nome) VALUES ('emp1', 'ABC Distribuidora') ON CONFLICT DO NOTHING;

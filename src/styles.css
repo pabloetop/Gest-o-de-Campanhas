@@ -363,3 +363,52 @@ h3{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--text
 
 /* SVG ICONS */
 .ico{width:20px;height:20px;display:block;}
+
+/* =====================================================
+   LOADING OVERLAY
+===================================================== */
+#loading-overlay{
+  display:none;position:fixed;inset:0;z-index:9999;
+  background:rgba(15,15,26,0.7);backdrop-filter:blur(4px);
+  flex-direction:column;align-items:center;justify-content:center;gap:12px;
+}
+#loading-overlay.show{display:flex;}
+.ld-spinner{
+  width:42px;height:42px;border:3px solid rgba(98,70,234,0.25);
+  border-top-color:var(--brand);border-radius:50%;
+  animation:spin .8s linear infinite;
+}
+.ld-msg{font-family:'DM Sans',sans-serif;font-size:13px;color:rgba(255,255,255,0.7);}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* =====================================================
+   SKELETON LOADERS
+===================================================== */
+.sk-card{
+  background:var(--card);border-radius:var(--radius);padding:18px;
+  border:1px solid var(--border);display:flex;flex-direction:column;gap:10px;
+}
+.sk-line{
+  height:12px;border-radius:6px;background:linear-gradient(90deg,var(--bg) 25%,var(--border) 50%,var(--bg) 75%);
+  background-size:200% 100%;animation:shimmer 1.4s infinite;
+}
+.sk-line.wide{width:85%;}
+.sk-line.medium{width:60%;}
+.sk-line.short{width:35%;}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* =====================================================
+   ZERO STATE
+===================================================== */
+.zero-state{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:48px 24px;text-align:center;gap:10px;
+}
+.zero-icon{font-size:52px;line-height:1;opacity:.6;}
+.zero-title{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--text);}
+.zero-sub{font-size:13px;color:var(--muted);max-width:220px;line-height:1.5;}
+
+/* =====================================================
+   CHART CONTAINER
+===================================================== */
+.chart-wrap{position:relative;height:200px;width:100%;}

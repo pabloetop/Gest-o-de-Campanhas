@@ -59,78 +59,12 @@ let CLIENTES = [...DEFAULT_CLIENTES];
 let CAMPANHAS = [...DEFAULT_CAMPANHAS];
 let AGENDA = {seg:[],ter:[{id:'t1',text:'Visita Rede Econômica',type:'visita'}],qua:[],qui:[],sex:[]};
 
-const supabaseUrl = 'https://kudfexbgjwayxppnfcyh.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1ZGZleGJnandheXhwcG5mY3loIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2Mzk3MzgsImV4cCI6MjA5MDIxNTczOH0.FrcUgasCCt2FRsLPO_d6RUDTZUbOMjWezl9LL_9oaXw';
-let supabaseClient = null;
-
-async function loadFromSupabase() {
-  try {
-    if(!window.supabase) {
-      alert("Erro Crítico: Supabase não foi carregado pelo navegador. Verifique sua rede.");
-      return;
-    }
-    if(!supabaseClient) {
-      supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
-    }
-    const [resU, resC, resCamp, resA] = await Promise.all([
-      supabaseClient.from('users').select('*'),
-      supabaseClient.from('clientes').select('*'),
-      supabaseClient.from('campanhas').select('*'),
-      supabaseClient.from('agenda').select('*')
-    ]);
-    
-    if (resU.data && resU.data.length > 0) USERS = resU.data;
-    if (resC.data && resC.data.length > 0) CLIENTES = resC.data;
-    if (resCamp.data && resCamp.data.length > 0) {
-      // Garantir compatibilidade com objetos JSON do localStorage
-      CAMPANHAS = resCamp.data.map(c => ({
-        ...c,
-        planejamentos: typeof c.planejamentos === 'string' ? JSON.parse(c.planejamentos) : (c.planejamentos || {})
-      }));
-    }
-    if (resA.data && resA.data.length > 0) {
-      const newAgenda = {};
-      resA.data.forEach(row => { 
-        newAgenda[row.id] = typeof row.tasks === 'string' ? JSON.parse(row.tasks) : (row.tasks || []); 
-      });
-      ['seg','ter','qua','qui','sex'].forEach(d => { if(!newAgenda[d]) newAgenda[d] = []; });
-      AGENDA = newAgenda;
-    }
-  } catch(e) {
-    console.error("Erro carregando do Supabase:", e);
-  }
-}
-
-// Compatibility with existing code
-let VENDEDORES = VENDEDORES_INFO; 
-
+// === Supabase, saveAll, toggleTheme, loadTheme agora estão em api.js e ui.js ===
+let VENDEDORES = VENDEDORES_INFO;
 
 const DAYS=['seg','ter','qua','qui','sex'];
 const DAY_NAMES={seg:'Segunda',ter:'Terça',qua:'Quarta',qui:'Quinta',sex:'Sexta'};
 const DAY_DATES={seg:'10/02',ter:'11/02',qua:'12/02',qui:'13/02',sex:'14/02'};
-
-// --- Persistence Helpers ---
-async function saveAll(){
-  try {
-    if(!supabaseClient) return;
-    if(USERS.length > 0) await supabaseClient.from('users').upsert(USERS);
-    if(CLIENTES.length > 0) await supabaseClient.from('clientes').upsert(CLIENTES);
-    if(CAMPANHAS.length > 0) await supabaseClient.from('campanhas').upsert(CAMPANHAS);
-    
-    const agendaUpserts = Object.keys(AGENDA).map(day => ({ id: day, tasks: AGENDA[day] }));
-    await supabaseClient.from('agenda').upsert(agendaUpserts);
-  } catch(e) {
-    console.error("Erro ao salvar no Supabase:", e);
-  }
-}
-function toggleTheme(){
-  const isDark = document.body.classList.toggle('dark');
-  localStorage.setItem(ST_THEME, isDark ? 'dark' : 'light');
-}
-function loadTheme(){
-  const theme = localStorage.getItem(ST_THEME);
-  if(theme==='dark') document.body.classList.add('dark');
-}
 
 // ======================== CORE ENGINE ========================
 function go(id){
@@ -145,11 +79,7 @@ function back(){
   screenStack.pop();
   go(screenStack[screenStack.length-1]);
 }
-function trig(id){document.getElementById(id).click();}
-function closeModal(id){document.getElementById(id).classList.remove('open');}
-function snack(txt){const s=document.getElementById('snack');s.textContent=txt;s.classList.add('show');setTimeout(()=>s.classList.remove('show'),2400);}
-function toggleNotif(e){e.stopPropagation();document.getElementById('notif-panel').classList.toggle('open');}
-window.onclick=function(e){if(!e.target.closest('.notif-panel')&&!e.target.closest('.notif-btn')){document.getElementById('notif-panel').classList.remove('open');}}
+// trig, closeModal, snack, toggleNotif, window.onclick agora definidos em ui.js
 
 // ======================== HELPERS ========================
 const fmtR=v=>(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -167,7 +97,11 @@ function calcPremio(c,p){
 
 function getMinhasCampanhas() {
   if(!currentUser) return [];
-  return CAMPANHAS.filter(c => !c.empresaId || c.empresaId === currentUser.empresaId);
+  const eid = currentUser.empresa_id || currentUser.empresaId;
+  return CAMPANHAS.filter(c => {
+    const ceid = c.empresa_id || c.empresaId;
+    return !ceid || ceid === eid;
+  });
 }
 
 // ======================== ACTIONS ========================
@@ -183,59 +117,55 @@ function setRole(r,toggleId,btn){
   renderSidebar(); // Update sidebar content if role changes
 }
 
-function doLogin(){
+async function doLogin(){
   const email = document.getElementById('login-email').value.trim();
-  const pass = document.getElementById('login-pass').value.trim();
-  
-  if(!email || !pass){ snack('Preencha todos os campos!'); return; }
-  
-  snack('Autenticando...');
-  
-  const user = USERS.find(u => u.email.toLowerCase() === email.toLowerCase() && u.pass === pass);
-  
-  setTimeout(()=>{
-    if(!user){
-      snack('E-mail ou senha incorretos.');
-      return;
-    }
-    
-    currentUser = user;
-    userRole = user.role;
-    VENDEDORES = USERS.filter(u => u.role === 'v' && u.empresaId === currentUser.empresaId);
-    
-    syncUserUI();
-    
-    if(userRole==='v'){screenStack=['s-hv'];renderHV();go('s-hv');}
-    else{screenStack=['s-hg'];renderHG();go('s-hg');}
-    renderSidebar();
-    updateNotifDots();
-    snack(`Bem-vindo, ${user.nome}!`);
-  },800);
+  const pass  = document.getElementById('login-pass').value.trim();
+  if(!email || !pass){ snack('Preencha todos os campos!','error'); return; }
+  showLoadingOverlay('Autenticando...');
+  try {
+    const { user: authUser } = await apiSignIn(email, pass);
+    const profile = await apiGetProfile(authUser.id);
+    await _afterLogin(profile);
+    snack(`Bem-vindo, ${profile.nome}!`, 'success');
+  } catch(err) {
+    snack('E-mail ou senha incorretos.', 'error');
+  } finally {
+    hideLoadingOverlay();
+  }
 }
 
-function doRegister(){
-  const nome = document.getElementById('reg-nome').value.trim();
-  const email = document.getElementById('reg-email').value.trim();
-  const cpf = document.getElementById('reg-cpf').value.trim();
+async function _afterLogin(profile) {
+  currentUser = profile;
+  userRole = profile.role;
+  await loadAllData();
+  syncUserUI();
+  if(userRole==='v'){screenStack=['s-hv'];renderHV();go('s-hv');}
+  else{screenStack=['s-hg'];renderHG();go('s-hg');}
+  renderSidebar();
+  await loadNotifsFromDB();
+}
+
+async function doRegister(){
+  const nome    = document.getElementById('reg-nome').value.trim();
+  const email   = document.getElementById('reg-email').value.trim();
+  const cpf     = document.getElementById('reg-cpf').value.trim();
   const empresa = document.getElementById('reg-empresa').value.trim();
-  const pass = document.getElementById('reg-pass').value.trim();
-  
-  if(!nome || !email || !pass){ snack('Preencha os campos obrigatórios!'); return; }
-  if(USERS.some(u => u.email.toLowerCase() === email.toLowerCase())){ snack('Este e-mail já está cadastrado.'); return; }
-  
-  const id = (userRole==='v'?'v':'g') + Date.now();
-  const initials = nome.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
-  const avClass = userRole==='v' ? 'av-o' : 'av-d';
-  
-  const existingUser = USERS.find(u => u.empresa && u.empresa.toLowerCase() === empresa.toLowerCase());
-  const empresaId = existingUser ? existingUser.empresaId : 'emp' + Date.now();
-  
-  const newUser = { id, nome, email, cpf, empresa, empresaId, pass, role: userRole, initials, avClass };
-  USERS.push(newUser);
-  saveAll();
-  
-  snack('Conta criada com sucesso!');
-  setTimeout(()=>go('s-login'), 1000);
+  const pass    = document.getElementById('reg-pass').value.trim();
+  if(!nome || !email || !pass){ snack('Preencha os campos obrigatórios!','error'); return; }
+  showLoadingOverlay('Criando conta...');
+  try {
+    const companyObj = await apiGetOrCreateEmpresa(empresa);
+    const { user: authUser } = await apiSignUp(email, pass, { nome, role: userRole, empresa: companyObj.nome, empresa_id: companyObj.id });
+    const initials = nome.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+    const av_class = userRole==='v' ? 'av-o' : 'av-d';
+    await apiUpsertProfile({ id: authUser.id, nome, email, cpf, empresa: companyObj.nome, empresa_id: companyObj.id, role: userRole, initials, av_class });
+    snack('Conta criada! Faça o login.', 'success');
+    setTimeout(()=>go('s-login'), 1200);
+  } catch(err) {
+    snack(err.message || 'Erro ao criar conta.', 'error');
+  } finally {
+    hideLoadingOverlay();
+  }
 }
 
 function syncUserUI(){
@@ -247,7 +177,8 @@ function syncUserUI(){
   document.querySelectorAll('.nav-name').forEach(el => el.textContent = `Oi, ${firstName}`);
   
   document.querySelectorAll('.nav-avatar, .photo-circle').forEach(el => {
-    if(currentUser.photo){ el.innerHTML = `<img src="${currentUser.photo}">`; }
+    const src = currentUser.photo_url || currentUser.photo;
+    if(src){ el.innerHTML = `<img src="${src}">`; }
     else if(!el.querySelector('img')) el.textContent = init;
   });
   
@@ -281,9 +212,10 @@ function salvarPerfilV() {
   currentUser.telefone = document.getElementById('pv-tel-i').value.trim();
   currentUser.cidade = document.getElementById('pv-cidade-i').value.trim();
   currentUser.sobre = document.getElementById('pv-sobre').value.trim();
-  const userIndex = USERS.findIndex(u => u.id === currentUser.id);
-  if(userIndex > -1){ USERS[userIndex] = currentUser; saveAll(); }
-  syncUserUI(); snack('Perfil atualizado com sucesso!');
+  const idx = USERS.findIndex(u => u.id === currentUser.id);
+  if(idx > -1) USERS[idx] = currentUser;
+  apiUpsertProfile(currentUser).catch(console.warn);
+  syncUserUI(); snack('Perfil atualizado!', 'success');
 }
 
 function salvarPerfilG() {
@@ -293,14 +225,21 @@ function salvarPerfilG() {
   currentUser.empresa = document.getElementById('pg-empresa-i').value.trim();
   currentUser.cargo = document.getElementById('pg-cargo-i').value.trim();
   currentUser.sobre = document.getElementById('pg-sobre').value.trim();
-  const userIndex = USERS.findIndex(u => u.id === currentUser.id);
-  if(userIndex > -1){ USERS[userIndex] = currentUser; saveAll(); }
-  syncUserUI(); snack('Perfil atualizado com sucesso!');
+  const idx = USERS.findIndex(u => u.id === currentUser.id);
+  if(idx > -1) USERS[idx] = currentUser;
+  apiUpsertProfile(currentUser).catch(console.warn);
+  syncUserUI(); snack('Perfil atualizado!', 'success');
 }
 
 
 function askLogout(){document.getElementById('modal-logout').classList.add('open');}
-function confirmLogout(){closeModal('modal-logout');screenStack=['s-login'];go('s-login');currentUser=null;renderSidebar();}
+async function confirmLogout(){
+  closeModal('modal-logout');
+  await apiSignOut().catch(()=>{});
+  currentUser=null; USERS=[]; CLIENTES=[]; CAMPANHAS=[]; VENDEDORES=[]; NOTIFS=[];
+  destroyCharts();
+  screenStack=['s-login']; go('s-login'); renderSidebar();
+}
 
 function vtab(tab){
   const screens={home:'s-hv',campanhas:'s-cv',clientes:'s-clientes',perfil:'s-pv'};
@@ -333,20 +272,31 @@ function gtab(tab){
 
 function sync(id,disp){document.getElementById(disp).textContent=document.getElementById(id).value;}
 function syncSobre(id,disp){const val=document.getElementById(id).value;document.getElementById(disp).textContent=val||'Adicione uma bio abaixo';}
-function prevPhoto(input,circId,navIds){
-  if(input.files&&input.files[0]){
-    const reader=new FileReader();
-    reader.onload=e=>{
+async function prevPhoto(input,circId,navIds){
+  if(!input.files||!input.files[0]) return;
+  const file = input.files[0];
+  snack('Enviando foto...','info');
+  try {
+    const url = await apiUploadAvatar(currentUser.id, file);
+    currentUser.photo_url = url;
+    const imgHtml = `<img src="${url}">`;
+    document.getElementById(circId).innerHTML = imgHtml;
+    navIds.forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=imgHtml;});
+    await apiUpsertProfile({ id: currentUser.id, photo_url: url });
+    snack('Foto atualizada!','success');
+  } catch(err) {
+    // Fallback: save as base64
+    const reader = new FileReader();
+    reader.onload = e => {
       const result = e.target.result;
-      document.getElementById(circId).innerHTML=`<img src="${result}">`;
-      navIds.forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=`<img src="${result}">`;});
-      if(currentUser) {
-        currentUser.photo = result;
-        const userIndex = USERS.findIndex(u => u.id === currentUser.id);
-        if(userIndex > -1) { USERS[userIndex] = currentUser; saveAll(); }
-      }
+      const imgHtml = `<img src="${result}">`;
+      document.getElementById(circId).innerHTML = imgHtml;
+      navIds.forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=imgHtml;});
+      currentUser.photo = result;
+      apiUpsertProfile({ id: currentUser.id, photo: result }).catch(()=>{});
+      snack('Foto atualizada (local)!','success');
     };
-    reader.readAsDataURL(input.files[0]);
+    reader.readAsDataURL(file);
   }
 }
 
@@ -528,12 +478,19 @@ function updatePlanCalc(){
 function salvarPlanejamento(){
   const plan=parseInt(document.getElementById('plan-planejado').value)||0;
   const vend=parseInt(document.getElementById('plan-vendido').value)||0;
-  if(!plan){snack('Informe o valor planejado!');return;}
+  if(!plan){snack('Informe o valor planejado!','error');return;}
   planTemp.planejado=plan;planTemp.vendido=vend;
   if(!currentUser) return;
   campAtiva.planejamentos[currentUser.id]=JSON.parse(JSON.stringify(planTemp));
-  saveAll();
-  snack('Planejamento salvo!');back();renderCV();renderHV();
+  // Salva tanto no JSONB do campanhas quanto na tabela normalizada de planejamentos
+  apiUpsertCampanha(campAtiva).catch(console.warn);
+  apiUpsertPlanejamento({
+    id: `${campAtiva.id}_${currentUser.id}`,
+    campanha_id: campAtiva.id, vendedor_id: currentUser.id,
+    valor_planejado: plan, valor_vendido: vend,
+    clientes_vinculados: planTemp.clientes
+  }).catch(console.warn);
+  snack('Planejamento salvo!','success');back();renderCV();renderHV();
 }
 
 function removerClientePlan(cid){planTemp.clientes=planTemp.clientes.filter(id=>id!==cid);renderPlan();}
@@ -585,27 +542,30 @@ function salvarEdicaoCliente(){
   ['nome','resp','end','tel','obs'].forEach(f=>{const el=document.getElementById('ec-'+f);if(el)c[f]=el.value.trim();});
   const lojas=document.getElementById('ec-lojas');if(lojas)c.lojas=parseInt(lojas.value)||0;
   const dia=document.getElementById('ec-dia');if(dia)c.dia=dia.value;
-  saveAll();
-  closeModal('modal-editar-cliente');renderClientesList();snack('Cliente atualizado!');
+  apiUpsertCliente({ ...c, empresa_id: currentUser?.empresa_id || c.empresa_id }).catch(console.warn);
+  closeModal('modal-editar-cliente');renderClientesList();snack('Cliente atualizado!','success');
 }
 function addCliente(){
   const nome=document.getElementById('nc-nome').value.trim();
-  if(!nome){snack('Informe o nome do cliente!');return;}
+  if(!nome){snack('Informe o nome do cliente!','error');return;}
   const id='c'+Date.now();
-  CLIENTES.push({id,nome,resp:document.getElementById('nc-resp').value.trim(),end:document.getElementById('nc-end').value.trim(),tel:document.getElementById('nc-tel').value.trim(),lojas:parseInt(document.getElementById('nc-lojas').value)||0,dia:document.getElementById('nc-dia').value,obs:document.getElementById('nc-obs').value.trim()});
-  saveAll();
-  ['nc-nome','nc-resp','nc-doc','nc-end','nc-tel','nc-lojas','nc-obs'].forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
+  const eid = currentUser?.empresa_id || currentUser?.empresaId;
+  const novoCliente={id,nome,empresa_id:eid,resp:document.getElementById('nc-resp').value.trim(),end:document.getElementById('nc-end').value.trim(),tel:document.getElementById('nc-tel').value.trim(),lojas:parseInt(document.getElementById('nc-lojas').value)||0,dia:document.getElementById('nc-dia').value,obs:document.getElementById('nc-obs').value.trim()};
+  CLIENTES.push(novoCliente);
+  apiUpsertCliente(novoCliente).catch(console.warn);
+  ['nc-nome','nc-resp','nc-doc','nc-end','nc-tel','nc-lojas','nc-obs'].forEach(i=>{const el=document.getElementById(i);if(el)el.value=''});
   const d=document.getElementById('nc-dia');if(d)d.value='';
-  renderClientesList();snack('Cliente adicionado!');back();
+  renderClientesList();snack('Cliente adicionado!','success');back();
 }
+
 
 // ======================== RENDER GERENTE ========================
 function renderHG(){
   const ativas=getMinhasCampanhas().filter(c=>c.status==='ativa');
   const comPlanVs=VENDEDORES.filter(v=>ativas.some(c=>c.planejamentos[v.id]));
   const semPlan=VENDEDORES.filter(v=>!ativas.some(c=>c.planejamentos[v.id]));
-  // premiados = vendeu acima do planejado em pelo menos 1 campanha
   const premiados=VENDEDORES.filter(v=>ativas.some(c=>{const p=c.planejamentos[v.id];return p&&p.vendido>=p.planejado&&p.planejado>0;}));
+  const empresa = currentUser?.empresa || 'Minha Empresa';
   document.getElementById('hg-body').innerHTML=`
     <div class="hero">
       <div class="hero-title">Desempenho da equipe 📊</div>
@@ -616,18 +576,26 @@ function renderHG(){
         <div class="camp-stat"><div class="camp-stat-num" style="color:var(--gold);">${premiados.length}</div><div class="camp-stat-label">Premiados</div></div>
       </div>
     </div>
-    ${semPlan.length?`<div><div class="sec-title" style="margin-bottom:8px;">Sem planejamento</div><div class="card-sm">${semPlan.map(v=>`<div class="srow" style="padding:8px 0;"><div class="av ${v.avClass}">${v.initials}</div><div style="flex:1;"><div class="strong">${v.nome}</div><div class="muted">Nenhuma campanha planejada</div></div><button class="btn-notify" onclick="notificarVendedor('${v.nome}')">Notificar</button></div>`).join('')}</div></div>`:''}
+    ${VENDEDORES.length > 0 ? `
+    <div>
+      <div class="sec-title" style="margin-bottom:10px;">📈 Planejado vs Vendido</div>
+      <div class="card" style="padding:16px;">
+        <div style="height:200px;"><canvas id="chart-equipe"></canvas></div>
+      </div>
+    </div>` : ''}
+    ${semPlan.length?`<div><div class="sec-title" style="margin-bottom:8px;">Sem planejamento</div><div class="card-sm">${semPlan.map(v=>`<div class="srow" style="padding:8px 0;"><div class="av ${v.av_class||v.avClass||'av-o'}">${v.initials}</div><div style="flex:1;"><div class="strong">${v.nome}</div><div class="muted">Nenhuma campanha planejada</div></div><button class="btn-notify" onclick="notificarVendedor('${v.nome}')">Notificar</button></div>`).join('')}</div></div>`:''}
     ${comPlanVs.length?`<div><div class="sec-title" style="margin-bottom:8px;">Com planejamento</div><div class="card-sm">${comPlanVs.map(v=>{
       const totalVend=ativas.reduce((a,c)=>{const p=c.planejamentos[v.id];return a+(p?p.vendido:0);},0);
       const totalPlan=ativas.reduce((a,c)=>{const p=c.planejamentos[v.id];return a+(p?p.planejado:0);},0);
       const superou=totalVend>=totalPlan&&totalPlan>0;
-      return`<div class="srow" style="padding:8px 0;"><div class="av ${v.avClass}">${v.initials}</div><div style="flex:1;"><div class="strong">${v.nome}</div><div class="muted">${fmtR(totalVend)} vendido / ${fmtR(totalPlan)} planejado</div></div><span class="tag ${superou?'t-g':'t-o'}">${superou?'Premiado':'Em andamento'}</span></div>`;}).join('')}</div></div>`:''}
-  `;}
+      return`<div class="srow" style="padding:8px 0;"><div class="av ${v.av_class||v.avClass||'av-o'}">${v.initials}</div><div style="flex:1;"><div class="strong">${v.nome}</div><div class="muted">${fmtR(totalVend)} vendido / ${fmtR(totalPlan)} planejado</div></div><span class="tag ${superou?'t-g':'t-o'}">${superou?'Premiado':'Em andamento'}</span></div>`;}).join('')}</div></div>`:''}
+  `;
+  setTimeout(()=>renderEquipeChart(VENDEDORES, getMinhasCampanhas()), 80);
+}
 
 function notificarVendedor(nome){
   pushNotif('lembrete','Lembrete enviado para '+nome+': planejamento pendente!');
-  snack('Lembrete enviado para '+nome+'!');
-  updateNotifDots();
+  snack('Lembrete enviado para '+nome+'!','success');
 }
 
 function renderCG(){
@@ -762,15 +730,17 @@ function criarCampanha(){
   const meta=parseFloat(document.getElementById('nc-meta').value)||0;
   const premio=document.getElementById('nc-premio').value.trim();
   const desc=document.getElementById('nc-desc').value.trim();
-  if(!nome||!prod||!ini||!fim||!meta){snack('Preencha todos os campos obrigatórios!');return;}
+  if(!nome||!prod||!ini||!fim||!meta){snack('Preencha todos os campos obrigatórios!','error');return;}
   const id='camp'+Date.now();
   const emojis=['🎯','⭐','🚀','🏆','💥'];
   const emoji=emojis[Math.floor(Math.random()*emojis.length)];
-  CAMPANHAS.unshift({id,nome,emoji,produto:prod,desc,meta,premio:premio||'A definir',ini,fim,status:'ativa',planejamentos:{}, empresaId: currentUser.empresaId});
-  saveAll();
-  ['nc-campnome','nc-prod','nc-desc','nc-ini','nc-fim','nc-meta','nc-premio'].forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
+  const eid = currentUser?.empresa_id || currentUser?.empresaId;
+  const novaCamp={id,nome,emoji,produto:prod,desc,meta,premio:premio||'A definir',ini,fim,status:'ativa',empresa_id:eid,planejamentos:{}};
+  CAMPANHAS.unshift(novaCamp);
+  apiUpsertCampanha(novaCamp).catch(console.warn);
+  ['nc-campnome','nc-prod','nc-desc','nc-ini','nc-fim','nc-meta','nc-premio'].forEach(i=>{const el=document.getElementById(i);if(el)el.value=''});
   pushNotif('camp',`Nova campanha criada: ${nome}`);
-  snack(`Campanha "${nome}" criada!`);back();renderCG();renderHG();
+  snack(`Campanha "${nome}" criada!`,'success');back();renderCG();renderHG();
 }
 
 // ======================== AGENDA ========================
@@ -809,20 +779,42 @@ function renderAgenda(){
   `;}
 
 function setTaskType(day,type){agendaTaskType[day]=type;renderAgenda();}
-function addTask(day){const input=document.getElementById('ti-'+day);const text=input?input.value.trim():'';if(!text){snack('Escreva a atividade!');return;}AGENDA[day].push({id:'t'+Date.now(),text,type:agendaTaskType[day]||'rota'});saveAll();renderAgenda();}
-function delTask(day,id){AGENDA[day]=AGENDA[day].filter(t=>t.id!==id);saveAll();renderAgenda();}
+function addTask(day){const input=document.getElementById('ti-'+day);const text=input?input.value.trim():'';if(!text){snack('Escreva a atividade!','error');return;}AGENDA[day].push({id:'t'+Date.now(),text,type:agendaTaskType[day]||'rota'});const eid=currentUser?.empresa_id||currentUser?.empresaId;apiUpsertAgendaDia(eid,day,AGENDA[day]).catch(console.warn);renderAgenda();}
+function delTask(day,id){AGENDA[day]=AGENDA[day].filter(t=>t.id!==id);const eid=currentUser?.empresa_id||currentUser?.empresaId;apiUpsertAgendaDia(eid,day,AGENDA[day]).catch(console.warn);renderAgenda();}
 
-// Initialize App
+// ======================== NOTIFICAÇÕES (DB-backed) ========================
+let NOTIFS = [];
+async function loadNotifsFromDB(){
+  if(!currentUser?.id) return;
+  NOTIFS = await apiGetNotificacoes(currentUser.id);
+  renderNotifs();
+  updateNotifDots(NOTIFS.some(n=>n.unread));
+}
+async function pushNotif(type,title){
+  const notif={id:'n'+Date.now(),user_id:currentUser?.id,type,title,unread:true,created_at:new Date().toISOString()};
+  NOTIFS.unshift(notif);
+  updateNotifDots(true);
+  renderNotifs();
+  if(currentUser?.id) apiInsertNotificacao(notif).catch(console.warn);
+}
+async function readNotif(id){const n=NOTIFS.find(x=>x.id===id);if(n){n.unread=false;renderNotifs();updateNotifDots(NOTIFS.some(n=>n.unread));apiMarkNotifRead(id).catch(()=>{});}}
+async function clearNotifs(){NOTIFS.forEach(n=>n.unread=false);renderNotifs();updateNotifDots(false);if(currentUser?.id)apiMarkAllNotifsRead(currentUser.id).catch(()=>{});}
+
+// ======================== INICIALIZAÇÃO ========================
 window.onload = async () => {
   loadTheme();
-  
-  const sn = document.getElementById('snack');
-  if(sn) { sn.textContent = 'Sincronizando banco de dados...'; sn.classList.add('show'); }
-  
-  await loadFromSupabase();
-  VENDEDORES = USERS.filter(u => u.role === 'v'); // A atualização final por empresa ocorrerá no doLogin
-  
-  if(sn) sn.classList.remove('show');
-  
+  initSupabase();
+  showLoadingOverlay('Carregando ETOP...');
+  try {
+    const session = await apiGetSession();
+    if(session){
+      const profile = await apiGetProfile(session.user.id);
+      await _afterLogin(profile);
+    }
+  } catch(e) {
+    console.warn('Sem sessão ativa:', e.message);
+  } finally {
+    hideLoadingOverlay();
+  }
   renderNotifs();
 };
