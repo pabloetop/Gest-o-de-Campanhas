@@ -1,4 +1,5 @@
 // ======================== DATA & STATE ========================
+console.log('ETOP: app.js carregado');
 let userRole='v'; // 'v' vendedor, 'g' gerente
 let currentScreen='s-login';
 let screenStack=['s-login'];

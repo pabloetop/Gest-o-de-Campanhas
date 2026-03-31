@@ -1,6 +1,7 @@
 // ============================================================
 // ETOP — api.js  |  Camada de acesso ao Supabase (Auth + CRUD)
 // ============================================================
+console.log('ETOP: api.js carregado');
 
 const SUPABASE_URL = 'https://kudfexbgjwayxppnfcyh.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1ZGZleGJnandheXhwcG5mY3loIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2Mzk3MzgsImV4cCI6MjA5MDIxNTczOH0.FrcUgasCCt2FRsLPO_d6RUDTZUbOMjWezl9LL_9oaXw';

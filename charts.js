@@ -1,6 +1,7 @@
 // ============================================================
 // ETOP — charts.js  |  Gráficos com Chart.js
 // ============================================================
+console.log('ETOP: charts.js carregado');
 
 let gerenteBarChart = null;
 
