@@ -54,10 +54,11 @@ const DEFAULT_CAMPANHAS=[
 ];
 
 // --- Live Data (Initialized from Storage or Defaults) ---
-let USERS = [...DEFAULT_USERS];
-let CLIENTES = [...DEFAULT_CLIENTES];
-let CAMPANHAS = [...DEFAULT_CAMPANHAS];
-let AGENDA = {seg:[],ter:[{id:'t1',text:'Visita Rede Econômica',type:'visita'}],qua:[],qui:[],sex:[]};
+let USERS = [];
+let CLIENTES = [];
+let CAMPANHAS = [];
+let AGENDA = {seg:[],ter:[],qua:[],qui:[],sex:[]};
+// NOTIFS já declarado abaixo na seção correspondente
 
 // === Supabase, saveAll, toggleTheme, loadTheme agora estão em api.js e ui.js ===
 let VENDEDORES = VENDEDORES_INFO;
@@ -142,6 +143,7 @@ async function _afterLogin(profile) {
   if(userRole==='v'){screenStack=['s-hv'];renderHV();go('s-hv');}
   else{screenStack=['s-hg'];renderHG();go('s-hg');}
   renderSidebar();
+  // Carrega notificações e agenda após o perfil estar pronto
   await loadNotifsFromDB();
 }
 
