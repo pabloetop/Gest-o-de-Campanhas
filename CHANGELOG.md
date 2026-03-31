@@ -7,8 +7,20 @@ e este projeto segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
-## [Não lançado]
-> Funcionalidades em desenvolvimento para a próxima versão.
+## [2.0.0] — 2026-03-31
+
+### Adicionado
+- **Integração Supabase**: Autenticação nativa (`auth.users`) e Banco de Dados relacional.
+- **Camada de API**: Novo módulo `src/api.js` para isolar transações com o backend.
+- **Camada de UI**: Novo módulo `src/ui.js` com Snackbars, Skeletons e componentes globais.
+- **Dashboard Gerente**: Gráficos dinâmicos `Chart.js` comparando metas vs vendas por equipe.
+- **Multi-tenant**: Isolamento real por `empresa_id` em todas as tabelas.
+- **Storage**: Upload de fotos de perfil integrado ao Supabase Storage (`avatars`).
+
+### Alterado
+- Refatoração massiva do `app.js` reduzindo seu tamanho e desacoplando lógica de dados.
+- Estrutura de arquivos: Migração para pasta `src/` com modularização JS.
+- Schema SQL unificado e idempotente em `supabase_schema.sql`.
 
 ---
 
