@@ -9,6 +9,7 @@ let campAtiva=null;
 let planTemp=null;
 let clientesTempSel=[];
 let editandoClienteId=null;
+let NOTIFS = [];
 let agendaTaskType={};
 
 // --- Storage Key Names ---
@@ -59,7 +60,7 @@ let USERS = [];
 let CLIENTES = [];
 let CAMPANHAS = [];
 let AGENDA = {seg:[],ter:[],qua:[],qui:[],sex:[]};
-// NOTIFS já declarado abaixo na seção correspondente
+// NOTIFS já declarado no topo
 
 // === Supabase, saveAll, toggleTheme, loadTheme agora estão em api.js e ui.js ===
 let VENDEDORES = VENDEDORES_INFO;
@@ -786,7 +787,6 @@ function addTask(day){const input=document.getElementById('ti-'+day);const text=
 function delTask(day,id){AGENDA[day]=AGENDA[day].filter(t=>t.id!==id);const eid=currentUser?.empresa_id||currentUser?.empresaId;apiUpsertAgendaDia(eid,day,AGENDA[day]).catch(console.warn);renderAgenda();}
 
 // ======================== NOTIFICAÇÕES (DB-backed) ========================
-let NOTIFS = [];
 async function loadNotifsFromDB(){
   if(!currentUser?.id) return;
   NOTIFS = await apiGetNotificacoes(currentUser.id);
