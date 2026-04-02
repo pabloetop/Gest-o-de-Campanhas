@@ -81,7 +81,9 @@ var AGENDA = {seg:[],ter:[],qua:[],qui:[],sex:[]};
 VENDEDORES = VENDEDORES_INFO;
 
 
+const DAYS=['seg','ter','qua','qui','sex'];
 const DAY_NAMES={seg:'Segunda',ter:'Terça',qua:'Quarta',qui:'Quinta',sex:'Sexta'};
+
 const DAY_DATES={seg:'10/02',ter:'11/02',qua:'12/02',qui:'13/02',sex:'14/02'};
 
 // ======================== CORE ENGINE ========================
@@ -359,11 +361,8 @@ function renderNotifs(){
       ${n.unread?'<div class="notif-unread-dot"></div>':''}
     </div>`).join('');
 }
-function readNotif(id){const n=NOTIFS.find(x=>x.id===id);if(n)n.unread=false;renderNotifs();updateNotifDots(NOTIFS.some(x=>x.unread));}
-function clearNotifs(){NOTIFS.forEach(n=>n.unread=false);renderNotifs();updateNotifDots(false);}
-// Omitted: updateNotifDots re-defined here, now using the one in ui.js
+// pushNotif, readNotif e clearNotifs (versões async-Supabase) estão no final do arquivo
 
-function pushNotif(type,title){NOTIFS.unshift({id:'n'+Date.now(),type,title,time:'Agora',unread:true});updateNotifDots(true);}
 
 // ======================== RENDER VENDEDOR ========================
 function renderHV(){
