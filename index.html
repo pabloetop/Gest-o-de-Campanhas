@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ETOP — Plataforma de Campanhas</title>
   <link rel="stylesheet" href="styles.css" />
+  <script>
+    // ETOP Diagnostic Tool
+    window.onerror = function(msg, url, line, col, error) {
+      const err = "Erro: " + msg + "\nLocal: " + url + ":" + line + ":" + col;
+      console.error(err, error);
+      alert("⚠️ Falha do Sistema:\n" + err + "\n\nAbra o console (F12) para detalhes.");
+      return false;
+    };
+    console.log("ETOP: Diagnosticador Ativo");
+  </script>
 </head>
 <body>
   <!-- SVG ICON DEFS -->

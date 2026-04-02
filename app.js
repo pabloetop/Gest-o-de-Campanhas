@@ -9,17 +9,25 @@ window.onerror = function(msg, url, line) {
   return false;
 };
 
-let userRole='v'; // 'v' vendedor, 'g' gerente
-let currentScreen='s-login';
-let screenStack=['s-login'];
-let vFiltro='todas';
-let campFiltro='todas';
-let campAtiva=null;
-let planTemp=null;
-let clientesTempSel=[];
-let editandoClienteId=null;
-let NOTIFS = [];
-let agendaTaskType={};
+// Globais EXPLICITAMENTE vinculadas ao window (para evitar conflitos entre scripts e temporal dead zone)
+window.userRole = 'v'; 
+window.currentScreen = 's-login';
+window.screenStack = ['s-login'];
+window.vFiltro = 'todas';
+window.campFiltro = 'todas';
+window.NOTIFS = [];
+window.currentUser = null;
+
+// Variáveis de controle de UI (declaradas com var para hoisting seguro entre arquivos)
+var campAtiva = null;
+var planTemp = null;
+var clientesTempSel = [];
+var editandoClienteId = null;
+var agendaTaskType = {};
+var VENDEDORES = []; // Será populado após a definição de VENDEDORES_INFO
+
+
+
 
 // --- Storage Key Names ---
 const ST_CAMP = 'etop_campanhas';
@@ -28,7 +36,7 @@ const ST_AGENDA = 'etop_agenda';
 const ST_THEME = 'etop_theme';
 const ST_USERS = 'etop_users';
 
-let currentUser = null;
+// currentUser já definido no topo como window.currentUser
 
 
 // --- Default Data ---
@@ -65,16 +73,14 @@ const DEFAULT_CAMPANHAS=[
 ];
 
 // --- Live Data (Initialized from Storage or Defaults) ---
-let USERS = [];
-let CLIENTES = [];
-let CAMPANHAS = [];
-let AGENDA = {seg:[],ter:[],qua:[],qui:[],sex:[]};
-// NOTIFS já declarado no topo
+// --- Live Data ---
+var USERS = [];
+var CLIENTES = [];
+var CAMPANHAS = [];
+var AGENDA = {seg:[],ter:[],qua:[],qui:[],sex:[]};
+VENDEDORES = VENDEDORES_INFO;
 
-// === Supabase, saveAll, toggleTheme, loadTheme agora estão em api.js e ui.js ===
-let VENDEDORES = VENDEDORES_INFO;
 
-const DAYS=['seg','ter','qua','qui','sex'];
 const DAY_NAMES={seg:'Segunda',ter:'Terça',qua:'Quarta',qui:'Quinta',sex:'Sexta'};
 const DAY_DATES={seg:'10/02',ter:'11/02',qua:'12/02',qui:'13/02',sex:'14/02'};
 
@@ -810,20 +816,25 @@ async function readNotif(id){const n=NOTIFS.find(x=>x.id===id);if(n){n.unread=fa
 async function clearNotifs(){NOTIFS.forEach(n=>n.unread=false);renderNotifs();updateNotifDots(false);if(currentUser?.id)apiMarkAllNotifsRead(currentUser.id).catch(()=>{});}
 
 // ======================== INICIALIZAÇÃO ========================
+// Boot do app (Garante que o Supabase e o Profile carreguem na ordem correta)
 window.onload = async () => {
-  loadTheme();
-  initSupabase();
-  showLoadingOverlay('Carregando ETOP...');
+  console.log('ETOP: app.js iniciando onLoad');
   try {
+    if (typeof loadTheme === 'function') loadTheme();
+    if (typeof initSupabase === 'function') initSupabase();
+    
+    showLoadingOverlay('Carregando ETOP...');
+    
     const session = await apiGetSession();
     if(session){
       const profile = await apiGetProfile(session.user.id);
       await _afterLogin(profile);
     }
-  } catch(e) {
-    console.warn('Sem sessão ativa:', e.message);
+  } catch(err) {
+    console.warn('Boot: Sem sessão ativa ou erro de conexão:', err.message);
   } finally {
     hideLoadingOverlay();
+    if (typeof renderNotifs === 'function') renderNotifs();
   }
-  renderNotifs();
 };
+
