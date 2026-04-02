@@ -1,5 +1,14 @@
 // ======================== DATA & STATE ========================
 console.log('ETOP: app.js carregado');
+
+// Erro Global para Depuração em Produção (GitHub Pages)
+window.onerror = function(msg, url, line) {
+  const err = `Erro: ${msg} em ${url}:${line}`;
+  console.error(err);
+  if (typeof snack === 'function') snack('Falha no sistema. Recarregue a página.', 'error');
+  return false;
+};
+
 let userRole='v'; // 'v' vendedor, 'g' gerente
 let currentScreen='s-login';
 let screenStack=['s-login'];
@@ -344,14 +353,11 @@ function renderNotifs(){
       ${n.unread?'<div class="notif-unread-dot"></div>':''}
     </div>`).join('');
 }
-function readNotif(id){const n=NOTIFS.find(x=>x.id===id);if(n)n.unread=false;renderNotifs();updateNotifDots();}
-function clearNotifs(){NOTIFS.forEach(n=>n.unread=false);renderNotifs();updateNotifDots();}
-function updateNotifDots(){
-  const hasUnread=NOTIFS.some(n=>n.unread);
-  document.querySelectorAll('.notif-dot').forEach(d=>d.classList.toggle('show',hasUnread));
-  renderNotifs();
-}
-function pushNotif(type,title){NOTIFS.unshift({id:'n'+Date.now(),type,title,time:'Agora',unread:true});updateNotifDots();}
+function readNotif(id){const n=NOTIFS.find(x=>x.id===id);if(n)n.unread=false;renderNotifs();updateNotifDots(NOTIFS.some(x=>x.unread));}
+function clearNotifs(){NOTIFS.forEach(n=>n.unread=false);renderNotifs();updateNotifDots(false);}
+// Omitted: updateNotifDots re-defined here, now using the one in ui.js
+
+function pushNotif(type,title){NOTIFS.unshift({id:'n'+Date.now(),type,title,time:'Agora',unread:true});updateNotifDots(true);}
 
 // ======================== RENDER VENDEDOR ========================
 function renderHV(){

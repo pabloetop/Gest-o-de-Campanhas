@@ -9,9 +9,20 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 let _supabase = null;
 
 function initSupabase() {
-  if (!window.supabase) { console.error('Supabase SDK não encontrado.'); return null; }
-  if (!_supabase) _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  return _supabase;
+  if (typeof window.supabase === 'undefined') {
+    console.error('Supabase SDK não carregado. Verifique a conexão com a CDN.');
+    return null;
+  }
+  try {
+    if (!_supabase) {
+      _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      console.log('Supabase: Cliente inicializado');
+    }
+    return _supabase;
+  } catch (err) {
+    console.error('Erro na inicialização do Supabase:', err);
+    return null;
+  }
 }
 
 function getClient() {
