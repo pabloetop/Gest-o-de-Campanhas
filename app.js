@@ -100,8 +100,8 @@ function back(){
 // trig, closeModal, snack, toggleNotif, window.onclick agora definidos em ui.js
 
 // ======================== HELPERS ========================
-const fmtR=v=>(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-const fmtDate=s=>{if(!s)return'—';const[y,m,d]=s.split('-');return `${d}/${m}`;}
+// fmtR e fmtDate já estão definidos em ui.js
+
 function myPlan(c){return currentUser ? c.planejamentos[currentUser.id] : null;}
 function calcPremio(c,p){
   const planejado=p.planejado||0;
