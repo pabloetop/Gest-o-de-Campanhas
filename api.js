@@ -34,18 +34,34 @@ function getClient() {
 // =====================================================
 
 async function apiSignIn(email, password) {
-  const { data, error } = await getClient().auth.signInWithPassword({ email, password });
-  if (error) throw error;
-  return data;
+  try {
+    const { data, error } = await getClient().auth.signInWithPassword({ email, password });
+    if (error) {
+      console.error('apiSignIn error:', error.message, error.status);
+      throw error;
+    }
+    return data;
+  } catch (err) {
+    console.error('apiSignIn exception:', err);
+    throw err;
+  }
 }
 
 async function apiSignUp(email, password, metadata) {
-  const { data, error } = await getClient().auth.signUp({
-    email, password,
-    options: { data: metadata }
-  });
-  if (error) throw error;
-  return data;
+  try {
+    const { data, error } = await getClient().auth.signUp({
+      email, password,
+      options: { data: metadata }
+    });
+    if (error) {
+      console.error('apiSignUp error:', error.message, error.status);
+      throw error;
+    }
+    return data;
+  } catch (err) {
+    console.error('apiSignUp exception:', err);
+    throw err;
+  }
 }
 
 async function apiSignOut() {
@@ -79,9 +95,21 @@ async function apiGetOrCreateEmpresa(nome) {
 // =====================================================
 
 async function apiGetProfile(userId) {
-  const { data, error } = await getClient().from('users').select('*').eq('id', userId).single();
-  if (error) throw error;
-  return _normalizeUser(data);
+  try {
+    const { data, error } = await getClient().from('users').select('*').eq('id', userId).maybeSingle();
+    if (error) {
+      console.error('apiGetProfile error:', error.message);
+      throw error;
+    }
+    if (!data) {
+      console.warn('apiGetProfile: Perfil não encontrado para o ID', userId);
+      return null;
+    }
+    return _normalizeUser(data);
+  } catch (err) {
+    console.error('apiGetProfile exception:', err);
+    throw err;
+  }
 }
 
 async function apiGetUsersByEmpresa(empresaId) {

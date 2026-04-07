@@ -141,14 +141,38 @@ async function doLogin(){
   const email = document.getElementById('login-email').value.trim();
   const pass  = document.getElementById('login-pass').value.trim();
   if(!email || !pass){ snack('Preencha todos os campos!','error'); return; }
+  
   showLoadingOverlay('Autenticando...');
   try {
-    const { user: authUser } = await apiSignIn(email, pass);
-    const profile = await apiGetProfile(authUser.id);
+    const loginData = await apiSignIn(email, pass);
+    if (!loginData || !loginData.user) {
+      throw new Error('Falha na autenticação: Usuário não retornado.');
+    }
+
+    const profile = await apiGetProfile(loginData.user.id);
+    
+    if (!profile) {
+      console.error('Perfil não encontrado para o usuário autenticado:', loginData.user.id);
+      snack('Perfil de usuário não encontrado. Entre em contato com o suporte.', 'error');
+      return;
+    }
+
     await _afterLogin(profile);
     snack(`Bem-vindo, ${profile.nome}!`, 'success');
   } catch(err) {
-    snack('E-mail ou senha incorretos.', 'error');
+    console.error('Erro detalhado no login:', err);
+    
+    let msg = 'E-mail ou senha incorretos.';
+    if (err.message) {
+      if (err.message.includes('Email not confirmed')) {
+        msg = 'E-mail não confirmado. Verifique sua caixa de entrada.';
+      } else if (err.message.includes('Invalid login credentials')) {
+        msg = 'E-mail ou senha incorretos.';
+      } else if (err.status === 400 || err.status === 422) {
+        msg = 'Dados de login inválidos.';
+      }
+    }
+    snack(msg, 'error');
   } finally {
     hideLoadingOverlay();
   }
@@ -172,18 +196,79 @@ async function doRegister(){
   const cpf     = document.getElementById('reg-cpf').value.trim();
   const empresa = document.getElementById('reg-empresa').value.trim();
   const pass    = document.getElementById('reg-pass').value.trim();
-  if(!nome || !email || !pass){ snack('Preencha os campos obrigatórios!','error'); return; }
-  showLoadingOverlay('Criando conta...');
+
+  // Validação básica
+  if(!nome || !email || !pass){ 
+    snack('Nome, E-mail e Senha são obrigatórios!','error'); 
+    return; 
+  }
+  if (!empresa) {
+    snack('Por favor, informe o nome da sua empresa.', 'error');
+    return;
+  }
+  if (pass.length < 6) {
+    snack('A senha deve ter pelo menos 6 caracteres.', 'error');
+    return;
+  }
+
+  showLoadingOverlay('Criando sua conta...');
   try {
+    // 1. Vincular ou Criar Empresa
+    console.log('doRegister: Buscando/Criando empresa...', empresa);
     const companyObj = await apiGetOrCreateEmpresa(empresa);
-    const { user: authUser } = await apiSignUp(email, pass, { nome, role: userRole, empresa: companyObj.nome, empresa_id: companyObj.id });
+    
+    // 2. Criar conta no Auth
+    console.log('doRegister: Criando conta no Auth...', email);
+    const signUpData = await apiSignUp(email, pass, { 
+      nome, 
+      role: userRole, 
+      empresa: companyObj.nome, 
+      empresa_id: companyObj.id 
+    });
+
+    const authUser = signUpData.user;
+    
+    if (!authUser) {
+      // No Supabase, se o e-mail já existe e a confirmação está ON, ele pode não retornar o user
+      throw new Error('Usuário já cadastrado ou aguardando confirmação de e-mail.');
+    }
+
+    // 3. Criar Perfil na tabela 'users'
+    console.log('doRegister: Criando perfil na tabela users...', authUser.id);
     const initials = nome.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
     const av_class = userRole==='v' ? 'av-o' : 'av-d';
-    await apiUpsertProfile({ id: authUser.id, nome, email, cpf, empresa: companyObj.nome, empresa_id: companyObj.id, role: userRole, initials, av_class });
-    snack('Conta criada! Faça o login.', 'success');
-    setTimeout(()=>go('s-login'), 1200);
+    
+    await apiUpsertProfile({ 
+      id: authUser.id, 
+      nome, 
+      email, 
+      cpf, 
+      empresa: companyObj.nome, 
+      empresa_id: companyObj.id, 
+      role: userRole, 
+      initials, 
+      av_class 
+    });
+
+    snack('Conta criada com sucesso!', 'success');
+    
+    // Se não há sessão, é porque precisa confirmar e-mail
+    if (!signUpData.session) {
+      snack('Verifique seu e-mail para confirmar a conta.', 'info');
+    }
+
+    setTimeout(()=>go('s-login'), 1500);
   } catch(err) {
-    snack(err.message || 'Erro ao criar conta.', 'error');
+    console.error('Erro detalhado no cadastro:', err);
+    let msg = err.message || 'Erro ao criar conta.';
+    
+    if (msg.includes('User already registered')) {
+      msg = 'Este e-mail já está em uso.';
+    } else if (msg.includes('unique constraint')) {
+      msg = 'Dados duplicados (E-mail ou CPF já cadastrados).';
+    }
+    
+    snack(msg, 'error');
   } finally {
     hideLoadingOverlay();
   }
